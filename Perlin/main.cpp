@@ -61,6 +61,7 @@ public:
 		for (int i = 0; i < numOctaves; ++i)
 		{
 			weight >>= 1;
+			//
 			sum += weight;
 			total += InterpolatedNoise(x * frequency, y * frequency, seed) * weight;
 			frequency <<= 1;
