@@ -2,15 +2,19 @@
 #include "olcPixelGameEngine.h"
 
 using olc::Pixel;
+using olc::Key;
+using olc::vi2d;
 using std::to_string;
-using std::vector;
 
 #define screenSize 200
+#define keyLag 0.15
 
 class Example : public olc::PixelGameEngine
 {
 public:
-	int screen[screenSize][screenSize];
+	bool* screen;
+	vi2d pos;
+	double keyTimer[4];
 
 	double Noise(int x, int y, unsigned int seed)
 	{
@@ -30,16 +34,6 @@ public:
 		return double(tmp) / 0xFFFFFFFF;
 	}
 
-	/*double SmoothedNoise(int x, int y, unsigned int seed)
-	{
-		double side2 = (Noise(x - 2, y, seed) + Noise(x + 2, y, seed) + Noise(x, y - 2, seed) + Noise(x, y + 2, seed)) * 0 / 32;
-		double side1 = (Noise(x - 1, y, seed) + Noise(x + 1, y, seed) + Noise(x, y - 1, seed) + Noise(x, y + 1, seed)) * 4 / 32;
-		double corner1 = (Noise(x - 1, y - 1, seed) + Noise(x + 1, y - 1, seed) + Noise(x - 1, y + 1, seed) + Noise(x + 1, y + 1, seed)) * 0 / 32;
-		double sideCorner1 = (Noise(x + 1, y + 1, seed) + Noise(x + 1, y, seed) + Noise(x + 1, y - 1, seed)) * 0 / 24;
-		double center = Noise(x, y, seed) * 4 / 8;
-		return center + side1 + corner1 + side2 + sideCorner1;
-	}*/
-
 	double Interpolate(double a, double b, double x) { return (b - a) * (x * x * x * (x * (x * 6 - 15) + 10)) + a; }
 
 	double InterpolatedNoise(double x, double y, unsigned int seed)
@@ -48,13 +42,6 @@ public:
 		double fractional_X = x - integer_X;
 		int integer_Y = y;
 		double fractional_Y = y - integer_Y;
-
-		/*double v1 = SmoothedNoise(integer_X, integer_Y, seed),
-			v2 = SmoothedNoise(integer_X + 1, integer_Y, seed),
-			v3 = SmoothedNoise(integer_X, integer_Y + 1, seed),
-			v4 = SmoothedNoise(integer_X + 1, integer_Y + 1, seed),
-			i1 = Interpolate(v1, v2, fractional_X),
-			i2 = Interpolate(v3, v4, fractional_X);*/
 
 		double v1 = Noise(integer_X, integer_Y, seed),
 			v2 = Noise(integer_X + 1, integer_Y, seed),
@@ -65,18 +52,20 @@ public:
 		return Interpolate(i1, i2, fractional_Y);
 	}
 
-	double ValueNoise_2D(double x, double y, unsigned int seed = 0, int numOctaves = 8, double persistence = 0.5)
+	double ValueNoise_2D(double x, double y, unsigned int seed = 0, int numOctaves = 8)
 	{
-		double total = 0,
-			amplitude = 1;
-		unsigned int frequency = 1 << numOctaves;
+		double total = 0;
+		unsigned int frequency = 1,
+			weight = 1 << numOctaves,
+			sum = 0;
 		for (int i = 0; i < numOctaves; ++i)
 		{
-			frequency >>= 1;
-			amplitude *= persistence;
-			total += InterpolatedNoise(x / frequency, y / frequency, seed) * amplitude;
+			weight >>= 1;
+			sum += weight;
+			total += InterpolatedNoise(x * frequency, y * frequency, seed) * weight;
+			frequency <<= 1;
 		}
-		return total;
+		return total / sum;
 	}
 
 	Example()
@@ -86,24 +75,105 @@ public:
 
 	bool OnUserCreate() override
 	{
+		screen = new bool[screenSize * screenSize];
 		unsigned int seed = (unsigned int)std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-		for (int x = 0; x < ScreenWidth(); x++)
-			for (int y = 0; y < ScreenHeight(); y++)
-			{
-				screen[x][y] = ((ValueNoise_2D(x * 10, y * 10, seed))) * 0xff;
-			}
+		for (int x = 0; x < screenSize; x++)
+			for (int y = 0; y < screenSize; y++)
+				screen[x + y * screenSize] = (ValueNoise_2D((double)x / 10, (double)y / 10, seed, 3)) > 0.5;
+		pos = { screenSize / 2, screenSize / 2 };
+		while (!screen[pos.x + pos.y * screenSize])
+		{
+			int x = Noise(0, 0, seed);
+			int seed = Noise(0, 0, x);
+			pos += {x, seed};
+		}
 		return true;
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
+		if (GetKey(Key::W).bHeld || GetKey(Key::UP).bHeld)
+		{
+			keyTimer[0] += fElapsedTime;
+			if (keyTimer[0] > keyLag)
+			{
+				keyTimer[0] -= keyLag;
+				if (screen[pos.x + screenSize * (pos.y - 1)])
+				{
+					pos.y--;
+				}
+				else if (screen[pos.x + screenSize * (pos.y - 2)]) {
+					screen[pos.x + screenSize * (pos.y - 2)] = 0;
+					screen[pos.x + screenSize * (pos.y - 1)] = 1;
+					pos.y--;
+				}
+			}
+		}
+		else { keyTimer[0] = keyLag; }
+		if (GetKey(Key::A).bHeld || GetKey(Key::LEFT).bHeld)
+		{
+			keyTimer[1] += fElapsedTime;
+			if (keyTimer[1] > keyLag)
+			{
+				keyTimer[1] -= keyLag;
+				if (screen[pos.x - 1 + screenSize * pos.y])
+				{
+					pos.x--;
+				}
+				else if (screen[pos.x - 2 + screenSize * pos.y]) {
+					screen[pos.x - 2 + screenSize * pos.y] = 0;
+					screen[pos.x - 1 + screenSize * pos.y] = 1;
+					pos.x--;
+				}
+			}
+		}
+		else { keyTimer[1] = keyLag; }
+		if (GetKey(Key::S).bHeld || GetKey(Key::DOWN).bHeld)
+		{
+			keyTimer[2] += fElapsedTime;
+			if (keyTimer[2] > keyLag)
+			{
+				keyTimer[2] -= keyLag;
+				if (screen[pos.x + screenSize * (pos.y + 1)])
+				{
+					pos.y++;
+				}
+				else if (screen[pos.x + screenSize * (pos.y + 2)]) {
+					screen[pos.x + screenSize * (pos.y + 2)] = 0;
+					screen[pos.x + screenSize * (pos.y + 1)] = 1;
+					pos.y++;
+				}
+			}
+		}
+		else { keyTimer[2] = keyLag; }
+		if (GetKey(Key::D).bHeld || GetKey(Key::RIGHT).bHeld)
+		{
+			keyTimer[3] += fElapsedTime;
+			if (keyTimer[3] > keyLag)
+			{
+				keyTimer[3] -= keyLag;
+				if (screen[pos.x + 1 + screenSize * pos.y])
+				{
+					pos.x++;
+				}
+				else if (screen[pos.x + 2 + screenSize * pos.y]) {
+					screen[pos.x + 2 + screenSize * pos.y] = 0;
+					screen[pos.x + 1 + screenSize * pos.y] = 1;
+					pos.x++;
+				}
+			}
+		}
+		else { keyTimer[3] = keyLag; }
+
 		for (int x = 0; x < ScreenWidth(); x++)
 			for (int y = 0; y < ScreenHeight(); y++)
 			{
-				int h = screen[x][y];
+				int h = screen[x + y * screenSize] * 0xff;
 				Pixel color = Pixel(h, h, h);
 				Draw(x, y, color);
 			}
+		DrawString(0, 0, to_string(keyTimer[0]), Pixel(0xff, 0, 0));
+		Draw(pos, Pixel(0, 0xff, 0));
 		return true;
 	}
 };
