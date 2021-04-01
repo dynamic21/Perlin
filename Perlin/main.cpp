@@ -12,7 +12,7 @@ using std::to_string;
 class Example : public olc::PixelGameEngine
 {
 public:
-	bool* screen;
+	double* screen;
 	vi2d pos;
 	double keyTimer[4];
 
@@ -58,12 +58,12 @@ public:
 		unsigned int frequency = 1,
 			weight = 1 << numOctaves,
 			sum = 0;
-		for (int i = 0; i < numOctaves; ++i)
+		for (int i = 0; i < numOctaves; i++)
 		{
 			weight >>= 1;
-			sum += weight;
 			total += InterpolatedNoise(x * frequency, y * frequency, seed) * weight;
 			frequency <<= 1;
+			sum += weight;
 		}
 		return total / sum;
 	}
@@ -75,13 +75,13 @@ public:
 
 	bool OnUserCreate() override
 	{
-		screen = new bool[screenSize * screenSize];
+		screen = new double[screenSize * screenSize];
 		unsigned int seed = (unsigned int)std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 		for (int x = 0; x < screenSize; x++)
 			for (int y = 0; y < screenSize; y++)
-				screen[x + y * screenSize] = (ValueNoise_2D((double)x / 10, (double)y / 10, seed, 3)) > 0.5;
+				screen[x + y * screenSize] = ValueNoise_2D((double)x / 10, (double)y / 10, seed, 3);
 		pos = { screenSize / 2, screenSize / 2 };
-		while (!screen[pos.x + pos.y * screenSize])
+		while (!(screen[pos.x + pos.y * screenSize] > 0.5))
 		{
 			int x = Noise(0, 0, seed);
 			int seed = Noise(0, 0, x);
