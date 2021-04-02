@@ -6,19 +6,15 @@ using olc::Key;
 using olc::vi2d;
 using std::to_string;
 
-#define screenSize 100
+#define screenSize 200
 
 class Example : public olc::PixelGameEngine
 {
 public:
 	double* screen;
-	unsigned int seed = (unsigned int)std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-	double z;
-	int octavesN;
-	double frequencyW;
-	double layerW;
+	unsigned int seed;
 
-	double Noise(uint64_t x, uint64_t y, uint64_t z, uint64_t seed)
+	double Noise(int x, int y, int z, unsigned int seed)
 	{
 		uint64_t tmp2 = x * 0x4a39b70d;
 		uint32_t tmp = (tmp2 >> 32) ^ tmp2 ^ y;
@@ -61,15 +57,15 @@ public:
 		return Interpolate(i5, i6, fractional_Z);
 	}
 
-	double ValueNoise_2D(double x, double y, double z, unsigned int seed = 314159, int numOctaves = 8, double frequencyWeight = 1.3, double layerWeight = 1.6)
+	double ValueNoise_2D(double x, double y, double z, unsigned int seed = 314159, int numOctaves = 8, double frequencyWeight = 1.3, double layerWeight = 1.5)
 	{
 		double total = 0,
 			frequency = pow(frequencyWeight, numOctaves),
 			weight = 1,
 			sum = 0;
-		x += seed;
-		y += seed;
-		z += seed;
+		x += seed >> 8 & 0xff;
+		y += seed >> 16 & 0xff;
+		z += seed >> 24 & 0xff;
 		for (int i = 0; i < numOctaves; i++)
 		{
 			frequency /= frequencyWeight;
@@ -87,11 +83,7 @@ public:
 
 	bool OnUserCreate() override
 	{
-		octavesN = 8;
-		frequencyW = 1.31;
-		layerW = 1.43;
-		z = 0;
-
+		seed = (unsigned int)std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 		return true;
 	}
 
@@ -99,24 +91,19 @@ public:
 	{
 		Clear(Pixel(0, 0, 0));
 
-		if (GetKey(Key::W).bPressed) octavesN++;
-		if (GetKey(Key::S).bPressed) octavesN--;
-		if (GetKey(Key::E).bHeld) frequencyW += fElapsedTime;
-		if (GetKey(Key::D).bHeld) frequencyW -= fElapsedTime;
-		if (GetKey(Key::R).bHeld) layerW += fElapsedTime;
-		if (GetKey(Key::F).bHeld) layerW -= fElapsedTime;
-		if (GetKey(Key::Q).bHeld) z += fElapsedTime;
-		if (GetKey(Key::A).bHeld) z -= fElapsedTime;
-
 		for (int x = 0; x < screenSize; x++)
-			for (int y = 10; y < screenSize; y++)
+			for (int y = 0; y < screenSize; y++)
 			{
-				int h = (ValueNoise_2D((double)x / 10, (double)y / 10, z, seed, octavesN, frequencyW, layerW)) * 0xff;
+				int h = (ValueNoise_2D((double)x / 10, (double)y / 10, 0, seed)) * 0xff;
 				Pixel color = Pixel(h, h, h);
-				FillRect(x * 4, y * 4, 8, 8, color);
+				Draw(x, y, color);
 			}
 
-		DrawString(0, 0, to_string(z) + "; " + to_string(octavesN) + "; " + to_string(frequencyW) + "; " + to_string(layerW), Pixel(0xff, 0xff, 0xff));
+		if (GetKey(Key::SPACE).bPressed) {
+			seed ^= seed << 13;
+			seed ^= seed >> 17;
+			seed ^= seed << 5;
+		}
 
 		return true;
 	}
@@ -125,7 +112,7 @@ public:
 int main()
 {
 	Example demo;
-	if (demo.Construct(screenSize * 5, screenSize * 5, 2, 2))
+	if (demo.Construct(screenSize, screenSize, 5, 5))
 		demo.Start();
 	return 0;
 }
