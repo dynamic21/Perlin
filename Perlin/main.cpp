@@ -91,6 +91,12 @@ public:
 	{
 		Clear(Pixel(0, 0, 0));
 
+		if (GetKey(Key::SPACE).bPressed) {
+			seed ^= seed << 13;
+			seed ^= seed >> 17;
+			seed ^= seed << 5;
+		}
+
 		for (int x = 0; x < screenSize; x++)
 			for (int y = 0; y < screenSize; y++)
 			{
@@ -98,12 +104,6 @@ public:
 				Pixel color = Pixel(h, h, h);
 				Draw(x, y, color);
 			}
-
-		if (GetKey(Key::SPACE).bPressed) {
-			seed ^= seed << 13;
-			seed ^= seed >> 17;
-			seed ^= seed << 5;
-		}
 
 		return true;
 	}
