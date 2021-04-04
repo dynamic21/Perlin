@@ -5,8 +5,29 @@ using olc::Pixel;
 using olc::Key;
 using olc::vi2d;
 using std::to_string;
+using std::cout;
+using std::endl;
+using std::chrono::duration_cast;
+using std::chrono::seconds;
+using std::chrono::microseconds;
+using std::chrono::high_resolution_clock;
 
 #define screenSize 200
+
+unsigned int m_z = (unsigned int)duration_cast<seconds>(high_resolution_clock::now().time_since_epoch()).count();
+unsigned int m_w = (unsigned int)duration_cast<microseconds>(high_resolution_clock::now().time_since_epoch()).count();
+
+unsigned int intRand()
+{
+	m_z = 36969 * (m_z & 65535) + (m_z >> 16);
+	m_w = 18000 * (m_w & 65535) + (m_w >> 16);
+	return (m_z << 16) + m_w;
+}
+
+unsigned int doubleRand()
+{
+	return (intRand() + 1.0) * 2.328306435454494e-10;
+}
 
 class Example : public olc::PixelGameEngine
 {
@@ -16,7 +37,7 @@ public:
 
 	double Noise(int x, int y, int z, unsigned int seed)
 	{
-		uint64_t tmp2 = x * 0x4a39b70d;
+		uint64_t tmp2 = (uint64_t)x * 0x4a39b70d;
 		uint32_t tmp = (tmp2 >> 32) ^ tmp2 ^ y;
 		tmp2 = (uint64_t)tmp * 0x12fad5c9;
 		tmp = (tmp2 >> 32) ^ tmp2 ^ z;
@@ -57,21 +78,21 @@ public:
 		return Interpolate(i5, i6, fractional_Z);
 	}
 
-	double ValueNoise_2D(double x, double y, double z, unsigned int seed = 314159, int numOctaves = 8, double frequencyWeight = 1.3, double layerWeight = 1.5)
+	double ValueNoise_2D(double x, double y, double z, unsigned int seed = 314159, int numOctaves = 8, double frequencyWeight = 1.333333, double layerWeight = 1.5)
 	{
 		double total = 0,
 			frequency = pow(frequencyWeight, numOctaves),
 			weight = 1,
 			sum = 0;
-		x += seed >> 8 & 0xff;
-		y += seed >> 16 & 0xff;
-		z += seed >> 24 & 0xff;
 		for (int i = 0; i < numOctaves; i++)
 		{
 			frequency /= frequencyWeight;
 			total += InterpolatedNoise(x * frequency, y * frequency, z * frequency, seed) * weight;
 			sum += weight;
 			weight *= layerWeight;
+			seed ^= seed << 13;
+			seed ^= seed >> 17;
+			seed ^= seed << 5;
 		}
 		return total / sum;
 	}
@@ -83,7 +104,7 @@ public:
 
 	bool OnUserCreate() override
 	{
-		seed = (unsigned int)std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+		seed = intRand();
 		return true;
 	}
 
@@ -92,9 +113,7 @@ public:
 		Clear(Pixel(0, 0, 0));
 
 		if (GetKey(Key::SPACE).bPressed) {
-			seed ^= seed << 13;
-			seed ^= seed >> 17;
-			seed ^= seed << 5;
+			seed = intRand();
 		}
 
 		for (int x = 0; x < screenSize; x++)
