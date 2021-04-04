@@ -8,6 +8,8 @@ using std::to_string;
 
 using std::cout;
 using std::endl;
+using std::max;
+using std::min;
 
 using std::chrono::duration_cast;
 using std::chrono::seconds;
@@ -27,11 +29,6 @@ unsigned int intRand()
 	return (m_z << 16) + m_w;
 }
 
-unsigned int doubleRand()
-{
-	return (intRand() + 1.0) * 2.328306435454494e-10;
-}
-
 class Example : public olc::PixelGameEngine
 {
 public:
@@ -39,6 +36,18 @@ public:
 	unsigned int seed;
 	vd2d pos;
 	vd2d posv;
+
+	unsigned int doubleRand()
+	{
+		return (intRand() + 1.0) * 2.328306435454494e-10;
+	}
+
+	Pixel mapToPixel(double time) {
+		double r = (time > 3) ? max(0.0, std::min(1.0, time - 4)) : max(0.0, std::min(1.0, 2 - time));
+		double g = (time > 2) ? max(0.0, std::min(1.0, 4 - time)) : max(0.0, std::min(1.0, time));
+		double b = (time > 4) ? max(0.0, std::min(1.0, 6 - time)) : max(0.0, std::min(1.0, time - 2));
+		return Pixel(r * 0xff, g * 0xff, b * 0xff);
+	}
 
 	double Noise(int x, int y, int z, unsigned int seed)
 	{
@@ -134,9 +143,7 @@ public:
 		for (int x = 0; x < screenSize; x++)
 			for (int y = 0; y < screenSize; y++)
 			{
-				int h = (ValueNoise_2D((x + pos.x) / 50, (y + pos.y) / 50, 0, seed)) * 0xff;
-				Pixel color = Pixel(h, h, h);
-				Draw(x, y, color);
+				Draw(x, y, mapToPixel(6 * ValueNoise_2D((x + pos.x) / 50, (y + pos.y) / 50, 0, seed)));
 			}
 
 		return true;
