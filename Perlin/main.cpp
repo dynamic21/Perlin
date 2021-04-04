@@ -44,8 +44,10 @@ public:
 	{
 		uint64_t tmp2 = (uint64_t)x * 0x4a39b70d;
 		uint32_t tmp = (tmp2 >> 32) ^ tmp2 ^ y;
+
 		tmp2 = (uint64_t)tmp * 0x12fad5c9 ^ z;
 		tmp = (tmp2 >> 32) ^ tmp2 ^ seed;
+
 		tmp2 = (uint64_t)tmp * 0x4a39b70d;
 		tmp = (tmp2 >> 32) ^ tmp2;
 
@@ -56,12 +58,13 @@ public:
 
 	double InterpolatedNoise(double x, double y, double z, unsigned int seed)
 	{
-		int integer_X = floor(x);
-		int integer_Y = floor(y);
-		int integer_Z = floor(z);
-		double fractional_X = x - integer_X;
-		double fractional_Y = y - integer_Y;
-		double fractional_Z = z - integer_Z;
+		int integer_X = floor(x),
+			integer_Y = floor(y),
+			integer_Z = floor(z);
+
+		double fractional_X = x - integer_X,
+			fractional_Y = y - integer_Y,
+			fractional_Z = z - integer_Z;
 
 		double v1 = Noise(integer_X, integer_Y, integer_Z, seed),
 			v2 = Noise(integer_X + 1, integer_Y, integer_Z, seed),
@@ -77,6 +80,7 @@ public:
 			i4 = Interpolate(v7, v8, fractional_X),
 			i5 = Interpolate(i1, i2, fractional_Y),
 			i6 = Interpolate(i3, i4, fractional_Y);
+
 		return Interpolate(i5, i6, fractional_Z);
 	}
 
@@ -117,10 +121,10 @@ public:
 	{
 		if (GetKey(Key::SPACE).bPressed) { seed = intRand(); }
 
-		if (GetKey(Key::W).bHeld || GetKey(Key::UP).bHeld) { posv.y -= fElapsedTime; }
-		if (GetKey(Key::A).bHeld || GetKey(Key::LEFT).bHeld) { posv.x -= fElapsedTime; }
-		if (GetKey(Key::S).bHeld || GetKey(Key::DOWN).bHeld) { posv.y += fElapsedTime; }
-		if (GetKey(Key::D).bHeld || GetKey(Key::RIGHT).bHeld) { posv.x += fElapsedTime; }
+		if (GetKey(Key::W).bHeld || GetKey(Key::UP).bHeld) { posv.y -= fElapsedTime * 10; }
+		if (GetKey(Key::A).bHeld || GetKey(Key::LEFT).bHeld) { posv.x -= fElapsedTime * 10; }
+		if (GetKey(Key::S).bHeld || GetKey(Key::DOWN).bHeld) { posv.y += fElapsedTime * 10; }
+		if (GetKey(Key::D).bHeld || GetKey(Key::RIGHT).bHeld) { posv.x += fElapsedTime * 10; }
 
 		posv *= pow(friction, fElapsedTime);
 		pos += posv;
@@ -130,7 +134,7 @@ public:
 		for (int x = 0; x < screenSize; x++)
 			for (int y = 0; y < screenSize; y++)
 			{
-				int h = (ValueNoise_2D((double)x / 20 + pos.x, (double)y / 20 + pos.y, 0, seed)) * 0xff;
+				int h = (ValueNoise_2D((x + pos.x) / 50, (y + pos.y) / 50, 0, seed)) * 0xff;
 				Pixel color = Pixel(h, h, h);
 				Draw(x, y, color);
 			}
