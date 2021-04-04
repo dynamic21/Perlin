@@ -3,19 +3,22 @@
 
 using olc::Pixel;
 using olc::Key;
-using olc::vi2d;
+using olc::vd2d;
 using std::to_string;
+
 using std::cout;
 using std::endl;
+
 using std::chrono::duration_cast;
 using std::chrono::seconds;
 using std::chrono::microseconds;
 using std::chrono::high_resolution_clock;
 
-#define screenSize 200
-
 unsigned int m_z = (unsigned int)duration_cast<seconds>(high_resolution_clock::now().time_since_epoch()).count();
 unsigned int m_w = (unsigned int)duration_cast<microseconds>(high_resolution_clock::now().time_since_epoch()).count();
+
+#define screenSize 200
+#define friction 0.1
 
 unsigned int intRand()
 {
@@ -34,31 +37,30 @@ class Example : public olc::PixelGameEngine
 public:
 	double* screen;
 	unsigned int seed;
+	vd2d pos;
+	vd2d posv;
 
 	double Noise(int x, int y, int z, unsigned int seed)
 	{
 		uint64_t tmp2 = (uint64_t)x * 0x4a39b70d;
 		uint32_t tmp = (tmp2 >> 32) ^ tmp2 ^ y;
-		tmp2 = (uint64_t)tmp * 0x12fad5c9;
-		tmp = (tmp2 >> 32) ^ tmp2 ^ z;
-
-		tmp2 = (uint64_t)tmp * 0x4a39b70d;
+		tmp2 = (uint64_t)tmp * 0x12fad5c9 ^ z;
 		tmp = (tmp2 >> 32) ^ tmp2 ^ seed;
-		tmp2 = (uint64_t)tmp * 0x12fad5c9;
+		tmp2 = (uint64_t)tmp * 0x4a39b70d;
 		tmp = (tmp2 >> 32) ^ tmp2;
 
-		return double(tmp) / 0xFFFFFFFF;
+		return (tmp + 1.0) * 2.328306435454494e-10;
 	}
 
 	double Interpolate(double a, double b, double x) { return (b - a) * (x * x * x * (x * (x * 6 - 15) + 10)) + a; }
 
 	double InterpolatedNoise(double x, double y, double z, unsigned int seed)
 	{
-		int integer_X = x;
+		int integer_X = floor(x);
+		int integer_Y = floor(y);
+		int integer_Z = floor(z);
 		double fractional_X = x - integer_X;
-		int integer_Y = y;
 		double fractional_Y = y - integer_Y;
-		int integer_Z = z;
 		double fractional_Z = z - integer_Z;
 
 		double v1 = Noise(integer_X, integer_Y, integer_Z, seed),
@@ -78,18 +80,21 @@ public:
 		return Interpolate(i5, i6, fractional_Z);
 	}
 
-	double ValueNoise_2D(double x, double y, double z, unsigned int seed = 314159, int numOctaves = 8, double frequencyWeight = 1.333333, double layerWeight = 1.5)
+	double ValueNoise_2D(double x, double y, double z, unsigned int seed = intRand(), int numOctaves = 8, double frequencyWeight = 1.3, double layerWeight = 1.5)
 	{
 		double total = 0,
-			frequency = pow(frequencyWeight, numOctaves),
+			frequency = pow(frequencyWeight, numOctaves - 1),
 			weight = 1,
 			sum = 0;
+
 		for (int i = 0; i < numOctaves; i++)
 		{
-			frequency /= frequencyWeight;
 			total += InterpolatedNoise(x * frequency, y * frequency, z * frequency, seed) * weight;
+
 			sum += weight;
 			weight *= layerWeight;
+			frequency /= frequencyWeight;
+
 			seed ^= seed << 13;
 			seed ^= seed >> 17;
 			seed ^= seed << 5;
@@ -110,16 +115,22 @@ public:
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
-		Clear(Pixel(0, 0, 0));
+		if (GetKey(Key::SPACE).bPressed) { seed = intRand(); }
 
-		if (GetKey(Key::SPACE).bPressed) {
-			seed = intRand();
-		}
+		if (GetKey(Key::W).bHeld || GetKey(Key::UP).bHeld) { posv.y -= fElapsedTime; }
+		if (GetKey(Key::A).bHeld || GetKey(Key::LEFT).bHeld) { posv.x -= fElapsedTime; }
+		if (GetKey(Key::S).bHeld || GetKey(Key::DOWN).bHeld) { posv.y += fElapsedTime; }
+		if (GetKey(Key::D).bHeld || GetKey(Key::RIGHT).bHeld) { posv.x += fElapsedTime; }
+
+		posv *= pow(friction, fElapsedTime);
+		pos += posv;
+
+		Clear(Pixel(0, 0, 0));
 
 		for (int x = 0; x < screenSize; x++)
 			for (int y = 0; y < screenSize; y++)
 			{
-				int h = (ValueNoise_2D((double)x / 10, (double)y / 10, 0, seed)) * 0xff;
+				int h = (ValueNoise_2D((double)x / 20 + pos.x, (double)y / 20 + pos.y, 0, seed)) * 0xff;
 				Pixel color = Pixel(h, h, h);
 				Draw(x, y, color);
 			}
