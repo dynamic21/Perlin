@@ -1,10 +1,10 @@
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
 
-using olc::Pixel;
 using olc::Key;
 using olc::vd2d;
 using olc::vi2d;
+using olc::Pixel;
 using std::to_string;
 
 using std::cout;
@@ -12,14 +12,14 @@ using std::endl;
 using std::max;
 using std::min;
 
-using std::chrono::duration_cast;
 using std::chrono::seconds;
 using std::chrono::microseconds;
+using std::chrono::duration_cast;
 using std::chrono::high_resolution_clock;
 
+#define friction 0.1
 #define screenSize 300
 #define halfScreenSize screenSize / 2
-#define friction 0.1
 
 class Example : public olc::PixelGameEngine
 {
@@ -36,25 +36,19 @@ public:
 	{
 		m_z = 36969 * (m_z & 65535) + (m_z >> 16);
 		m_w = 18000 * (m_w & 65535) + (m_w >> 16);
+
 		return (m_z << 16) + m_w;
 	}
 
-	unsigned int doubleRand()
-	{
-		return (intRand() + 1.0) * 2.328306435454494e-10;
-	}
-
 	Pixel mapToRainbow(double d) {
-		double r = (d > 3) ? max(0.0, std::min(1.0, d - 4)) : max(0.0, std::min(1.0, 2 - d));
-		double g = (d > 2) ? max(0.0, std::min(1.0, 4 - d)) : max(0.0, std::min(1.0, d));
-		double b = (d > 4) ? max(0.0, std::min(1.0, 6 - d)) : max(0.0, std::min(1.0, d - 2));
+		double r = (d > 3) ? max(0.0, min(1.0, d - 4)) : max(0.0, min(1.0, 2 - d));
+		double g = (d > 2) ? max(0.0, min(1.0, 4 - d)) : max(0.0, min(1.0, d));
+		double b = (d > 4) ? max(0.0, min(1.0, 6 - d)) : max(0.0, min(1.0, d - 2));
+
 		return Pixel(r * 0xff, g * 0xff, b * 0xff);
 	}
 
-	Pixel mapToBAndW(double d) {
-		d = d > 0.5;
-		return Pixel(d * 0xff, d * 0xff, d * 0xff);
-	}
+	Pixel mapToBAndW(bool d) { return Pixel(d * 0xff, d * 0xff, d * 0xff); }
 
 	double Noise(int x, int y, int z, unsigned int seed)
 	{
@@ -119,12 +113,13 @@ public:
 			seed ^= seed >> 17;
 			seed ^= seed << 5;
 		}
+
 		return total / sum;
 	}
 
 	Example()
 	{
-		sAppName = "Example";
+		sAppName = "Perlin";
 	}
 
 	bool OnUserCreate() override
@@ -135,6 +130,7 @@ public:
 		seed = intRand();
 
 		DrawString(15, 2, "(Press {Space} to change the seed)  (Use {Q, E} to zoom in and out)  (Use {WASD, Arrow Keys} to move arround)");
+
 		return true;
 	}
 
@@ -158,7 +154,7 @@ public:
 			{
 				double value = ValueNoise_2D((x - halfScreenSize) * zoom + pos.x, (y - halfScreenSize) * zoom + pos.y, 0, seed);
 				FillRect(vi2d(x, y) * 3, vi2d(3, 3), mapToRainbow(6 * value));
-				//FillRect(vi2d(x, y) * 3, vi2d(3, 3), mapToBAndW(value));
+				//FillRect(vi2d(x, y) * 3, vi2d(3, 3), mapToBAndW(value > 0.5));
 			}
 
 		return true;
@@ -168,7 +164,9 @@ public:
 int main()
 {
 	Example demo;
+
 	if (demo.Construct(screenSize * 3, screenSize * 3, 1, 1))
 		demo.Start();
+
 	return 0;
 }
