@@ -4,6 +4,7 @@
 using olc::Pixel;
 using olc::Key;
 using olc::vd2d;
+using olc::vi2d;
 using std::to_string;
 
 using std::cout;
@@ -16,37 +17,43 @@ using std::chrono::seconds;
 using std::chrono::microseconds;
 using std::chrono::high_resolution_clock;
 
-unsigned int m_z = (unsigned int)duration_cast<seconds>(high_resolution_clock::now().time_since_epoch()).count();
-unsigned int m_w = (unsigned int)duration_cast<microseconds>(high_resolution_clock::now().time_since_epoch()).count();
-
-#define screenSize 200
+#define screenSize 300
+#define halfScreenSize screenSize / 2
 #define friction 0.1
-
-unsigned int intRand()
-{
-	m_z = 36969 * (m_z & 65535) + (m_z >> 16);
-	m_w = 18000 * (m_w & 65535) + (m_w >> 16);
-	return (m_z << 16) + m_w;
-}
 
 class Example : public olc::PixelGameEngine
 {
 public:
-	double* screen;
+	unsigned int m_z;
+	unsigned int m_w;
 	unsigned int seed;
+	double* screen;
+	double zoom;
 	vd2d pos;
 	vd2d posv;
+
+	unsigned int intRand()
+	{
+		m_z = 36969 * (m_z & 65535) + (m_z >> 16);
+		m_w = 18000 * (m_w & 65535) + (m_w >> 16);
+		return (m_z << 16) + m_w;
+	}
 
 	unsigned int doubleRand()
 	{
 		return (intRand() + 1.0) * 2.328306435454494e-10;
 	}
 
-	Pixel mapToPixel(double time) {
-		double r = (time > 3) ? max(0.0, std::min(1.0, time - 4)) : max(0.0, std::min(1.0, 2 - time));
-		double g = (time > 2) ? max(0.0, std::min(1.0, 4 - time)) : max(0.0, std::min(1.0, time));
-		double b = (time > 4) ? max(0.0, std::min(1.0, 6 - time)) : max(0.0, std::min(1.0, time - 2));
+	Pixel mapToRainbow(double d) {
+		double r = (d > 3) ? max(0.0, std::min(1.0, d - 4)) : max(0.0, std::min(1.0, 2 - d));
+		double g = (d > 2) ? max(0.0, std::min(1.0, 4 - d)) : max(0.0, std::min(1.0, d));
+		double b = (d > 4) ? max(0.0, std::min(1.0, 6 - d)) : max(0.0, std::min(1.0, d - 2));
 		return Pixel(r * 0xff, g * 0xff, b * 0xff);
+	}
+
+	Pixel mapToBAndW(double d) {
+		d = d > 0.5;
+		return Pixel(d * 0xff, d * 0xff, d * 0xff);
 	}
 
 	double Noise(int x, int y, int z, unsigned int seed)
@@ -67,9 +74,9 @@ public:
 
 	double InterpolatedNoise(double x, double y, double z, unsigned int seed)
 	{
-		int integer_X = floor(x),
-			integer_Y = floor(y),
-			integer_Z = floor(z);
+		int integer_X = x - (x < 0),
+			integer_Y = y - (y < 0),
+			integer_Z = z - (z < 0);
 
 		double fractional_X = x - integer_X,
 			fractional_Y = y - integer_Y,
@@ -93,20 +100,20 @@ public:
 		return Interpolate(i5, i6, fractional_Z);
 	}
 
-	double ValueNoise_2D(double x, double y, double z, unsigned int seed = intRand(), int numOctaves = 8, double frequencyWeight = 1.3, double layerWeight = 1.5)
+	double ValueNoise_2D(double x, double y, double z, unsigned int seed, int numOctaves = 4)
 	{
-		double total = 0,
-			frequency = pow(frequencyWeight, numOctaves - 1),
-			weight = 1,
+		double total = 0;
+		unsigned int weight = 1,
+			frequency = 1 << numOctaves,
 			sum = 0;
 
 		for (int i = 0; i < numOctaves; i++)
 		{
 			total += InterpolatedNoise(x * frequency, y * frequency, z * frequency, seed) * weight;
 
+			frequency >>= 1;
 			sum += weight;
-			weight *= layerWeight;
-			frequency /= frequencyWeight;
+			weight <<= 1;
 
 			seed ^= seed << 13;
 			seed ^= seed >> 17;
@@ -122,7 +129,12 @@ public:
 
 	bool OnUserCreate() override
 	{
+		m_z = (unsigned int)duration_cast<seconds>(high_resolution_clock::now().time_since_epoch()).count();
+		m_w = (unsigned int)duration_cast<microseconds>(high_resolution_clock::now().time_since_epoch()).count();
+		zoom = (double)1 / 32;
 		seed = intRand();
+
+		DrawString(15, 2, "(Press {Space} to change the seed)  (Use {Q, E} to zoom in and out)  (Use {WASD, Arrow Keys} to move arround)");
 		return true;
 	}
 
@@ -130,20 +142,23 @@ public:
 	{
 		if (GetKey(Key::SPACE).bPressed) { seed = intRand(); }
 
-		if (GetKey(Key::W).bHeld || GetKey(Key::UP).bHeld) { posv.y -= fElapsedTime * 10; }
-		if (GetKey(Key::A).bHeld || GetKey(Key::LEFT).bHeld) { posv.x -= fElapsedTime * 10; }
-		if (GetKey(Key::S).bHeld || GetKey(Key::DOWN).bHeld) { posv.y += fElapsedTime * 10; }
-		if (GetKey(Key::D).bHeld || GetKey(Key::RIGHT).bHeld) { posv.x += fElapsedTime * 10; }
+		if (GetKey(Key::Q).bHeld) { zoom *= pow(2, fElapsedTime); }
+		if (GetKey(Key::E).bHeld) { zoom /= pow(2, fElapsedTime); }
+
+		if (GetKey(Key::W).bHeld || GetKey(Key::UP).bHeld) { posv.y -= fElapsedTime * zoom * 0xff; }
+		if (GetKey(Key::A).bHeld || GetKey(Key::LEFT).bHeld) { posv.x -= fElapsedTime * zoom * 0xff; }
+		if (GetKey(Key::S).bHeld || GetKey(Key::DOWN).bHeld) { posv.y += fElapsedTime * zoom * 0xff; }
+		if (GetKey(Key::D).bHeld || GetKey(Key::RIGHT).bHeld) { posv.x += fElapsedTime * zoom * 0xff; }
 
 		posv *= pow(friction, fElapsedTime);
-		pos += posv;
-
-		Clear(Pixel(0, 0, 0));
+		pos += posv * fElapsedTime;
 
 		for (int x = 0; x < screenSize; x++)
-			for (int y = 0; y < screenSize; y++)
+			for (int y = 4; y < screenSize; y++)
 			{
-				Draw(x, y, mapToPixel(6 * ValueNoise_2D((x + pos.x) / 50, (y + pos.y) / 50, 0, seed)));
+				double value = ValueNoise_2D((x - halfScreenSize) * zoom + pos.x, (y - halfScreenSize) * zoom + pos.y, 0, seed);
+				FillRect(vi2d(x, y) * 3, vi2d(3, 3), mapToRainbow(6 * value));
+				//FillRect(vi2d(x, y) * 3, vi2d(3, 3), mapToBAndW(value));
 			}
 
 		return true;
@@ -153,7 +168,7 @@ public:
 int main()
 {
 	Example demo;
-	if (demo.Construct(screenSize, screenSize, 5, 5))
+	if (demo.Construct(screenSize * 3, screenSize * 3, 1, 1))
 		demo.Start();
 	return 0;
 }
